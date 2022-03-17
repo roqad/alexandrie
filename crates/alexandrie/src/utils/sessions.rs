@@ -65,26 +65,28 @@ impl SessionStore for SqlStore {
             data,
         };
 
-        // eprintln!("storing session: {:?}", record);
+        if author_id.is_some() {
+            self.db
+                .transaction(move |conn| -> async_session::Result<_> {
+                    let exists: bool =
+                        dsl::select(dsl::exists(sessions::table.find(&record.id))).get_result(conn)?;
 
-        self.db
-            .transaction(move |conn| -> async_session::Result<_> {
-                let exists: bool =
-                    dsl::select(dsl::exists(sessions::table.find(&record.id))).get_result(conn)?;
+                    eprintln!("exists: {:?}", exists);
 
-                if exists {
-                    diesel::update(sessions::table.find(&record.id))
-                        .set(&record)
-                        .execute(conn)?;
-                } else {
-                    diesel::insert_into(sessions::table)
-                        .values(&record)
-                        .execute(conn)?;
-                }
+                    if exists {
+                        diesel::update(sessions::table.find(&record.id))
+                            .set(&record)
+                            .execute(conn)?;
+                    } else {
+                        diesel::insert_into(sessions::table)
+                            .values(&record)
+                            .execute(conn)?;
+                    }
 
-                Ok(())
-            })
-            .await?;
+                    Ok(())
+                })
+                .await?;            
+        }
 
         Ok(session.into_cookie_value())
     }
